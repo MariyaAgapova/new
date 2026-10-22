@@ -548,6 +548,11 @@ input[type=range]::-webkit-slider-thumb{
       <button class="pill" data-st="planned">В планах</button>
       <button class="pill" data-st="done">Прочитано</button>
     </div></div>
+    <div class="field"><label>Формат чтения</label><select id="bkFormat">
+      <option>Бумага</option>
+      <option>Электронная</option>
+      <option>Аудио</option>
+    </select></div>
     <div class="actions">
       <button class="btn ghost" onclick="closeModal('bookOverlay')">Отмена</button>
       <button class="btn primary" onclick="addBook()">Добавить</button>
@@ -595,6 +600,15 @@ input[type=range]::-webkit-slider-thumb{
       <button class="pill" data-st="planned">В планах</button>
       <button class="pill" data-st="done">Прочитано</button>
     </div></div>
+    <div class="field"><label>Формат чтения</label><select id="prgFormat">
+      <option>Бумага</option>
+      <option>Электронная</option>
+      <option>Аудио</option>
+    </select></div>
+    <div class="row2">
+      <div class="field"><label>Дата начала</label><input type="date" id="prgStart" /></div>
+      <div class="field"><label>Дата окончания</label><input type="date" id="prgFinish" /></div>
+    </div>
     <div class="actions">
       <button class="btn ghost" onclick="closeModal('progressOverlay')">Отмена</button>
       <button class="btn primary" onclick="saveProgress()">Сохранить</button>
@@ -729,15 +743,20 @@ function renderAvatars(){
 function renderDashboard(){
   $('#dashHello').textContent=`Привет, ${me.name}!`;
   $('#stTotal').textContent=BOOKS.length;
-  $('#stReading').textContent=BOOKS.filter(b=>b.status==='reading').length;
-  $('#stDone').textContent=BOOKS.filter(b=>b.status==='done').length;
+  const allReaders=BOOKS.flatMap(b=>b.readers||[]);
+  $('#stReading').textContent=allReaders.filter(r=>r.status==='reading').length;
+  $('#stDone').textContent=allReaders.filter(r=>r.status==='done').length;
   $('#stPages').textContent=BOOKS.reduce((s,b)=>s+(+b.pages||0),0).toLocaleString('ru');
   renderUserProgress();
   renderActivity();
 }
 function renderUserProgress(){
   const counts={};USERS.forEach(u=>counts[u.id]={done:0,reading:0,planned:0});
-  BOOKS.forEach(b=>{if(counts[b.owner])counts[b.owner][b.status]++;});
+  BOOKS.forEach(b=>{
+    const rs=b.readers||[];
+    if(rs.length===0&&b.owner&&counts[b.owner]){counts[b.owner][b.status||'planned']++;}
+    else rs.forEach(r=>{if(counts[r.user_id])counts[r.user_id][r.status||'planned']++;});
+  });
   $('#userProgress').innerHTML=USERS.map(u=>{
     const sc=counts[u.id]||{done:0,reading:0,planned:0};
     const total=sc.done+sc.reading+sc.planned;
@@ -789,23 +808,40 @@ function renderLibrary(){
   }
   el.innerHTML=list.map(b=>{
     const p=pct(b);
+    const readers=b.readers||[];
+    const myReader=readers.find(x=>x.user_id===me.id);
+    const myStatus=myReader?myReader.status:(b.owner===me.id?b.status:'planned');
+    const fmtI={'Бумага':'📖','Электронная':'📱','Аудио':'🎧'};
+    const readersList=readers.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <span class="av" style="background:${avColor(r.user_color)};width:22px;height:22px;font-size:9px;border-width:1px">${initials(r.user_name)}</span>
+      <span style="font-size:12px;color:var(--text-dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.user_name)}</span>
+      <span class="status-chip ${r.status==='done'?'done':r.status==='reading'?'reading':'planned'}" style="font-size:10px">${statusLabel(r.status)}</span>
+      <span style="font-size:11px;color:var(--text-faint)">${fmtI[r.format]||'📖'} ${esc(r.format)}</span>
+    </div>`).join('');
     return `<article class="book" onclick="openBook(${b.id})">
       <div class="cover">${coverHTML(b)}</div>
       <div class="body">
         <div style="display:flex;align-items:center;gap:8px">
           <h3 style="flex:1">${esc(b.title)}</h3>
-          ${chip(b.status)}
+          ${chip(myStatus)}
         </div>
         <div class="author">${esc(b.author)}</div>
         <div class="progress"><span style="width:${p}%"></span></div>
-        <div class="meta">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
           <span class="badge ${genreClass(b.genre)}">${esc(b.genre)}</span>
-          <span class="pages">${b.pages} стр · ${p}%</span>
+          <span class="pages" style="margin-left:auto">${b.pages} стр</span>
         </div>
+        ${readers.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+          <div style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Статусы читателей</div>
+          ${readersList}
+        </div>`:''}
       </div>
     </article>`;
   }).join('');
 }
+function statusLabel(s){return {reading:'Читают',done:'Прочитали',planned:'В планах'}[s]||s;}
+function fmtDate(s){if(!s)return '';const d=new Date(s);if(isNaN(d))return '';return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'});}
+function fmtDateFull(s){if(!s)return '';const d=new Date(s);if(isNaN(d))return '';return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
 document.querySelectorAll('#libFilters .pill').forEach(p=>p.addEventListener('click',()=>{libFilter=p.dataset.f;renderLibrary();}));
 
 /* ================= RENDER: FEED ================= */
@@ -862,7 +898,30 @@ function toggleComments(qid){const el=document.getElementById('comments-'+qid);i
 /* ================= RENDER: BOOK DETAIL ================= */
 async function renderBook(){
   const b=BOOKS.find(x=>x.id===currentBookId);if(!b){switchView('library');return;}
+  const readers=b.readers||[];
+  const myReader=readers.find(x=>x.user_id===me.id);
+  const myStatus=myReader?myReader.status:'planned';
+  const myProgress=myReader?myReader.progress:0;
+  const myFormat=myReader?myReader.format:'Электронная';
   const p=pct(b);
+  const fmtIcon={'Бумага':'📖','Электронная':'📱','Аудио':'🎧'}[myFormat]||'📖';
+  const readerRows=readers.map(r=>{
+    const fmtI={'Бумага':'📖','Электронная':'📱','Аудио':'🎧'}[r.format]||'📖';
+    const rp=Math.round(r.progress/b.pages*100);
+    return `<div class="up-row" style="align-items:flex-start">
+      <span class="av" style="background:${avColor(r.user_color)}">${initials(r.user_name)}</span>
+      <div class="grow">
+        <div class="name">${esc(r.user_name)} <span class="status-chip ${r.status==='done'?'done':r.status==='reading'?'reading':'planned'}" style="font-size:10px">${statusLabel(r.status)}</span></div>
+        <div style="display:grid;grid-template-columns:auto auto;gap:2px 16px;margin-top:6px;font-size:12px;color:var(--text-dim)">
+          <span style="color:var(--text-faint)">Вид:</span><span>${fmtI} ${esc(r.format)}</span>
+          <span style="color:var(--text-faint)">Страницы:</span><span style="color:var(--neon-cyan)">${r.progress} / ${b.pages} <span style="color:var(--text-faint)">(${rp}%)</span></span>
+          <span style="color:var(--text-faint)">Начало:</span><span>${r.started_at?fmtDateFull(r.started_at):'—'}</span>
+          <span style="color:var(--text-faint)">Завершено:</span><span>${r.finished_at?fmtDateFull(r.finished_at):'—'}</span>
+        </div>
+        <div class="progress" style="margin-top:8px"><span style="width:${rp}%"></span></div>
+      </div>
+    </div>`;
+  }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0">Пока никто не читал</div>';
   $('#view-book').innerHTML=`
     <div class="detail">
       <div><div class="cover-big">${coverHTML(b)}</div>
@@ -884,16 +943,16 @@ async function renderBook(){
               <div style="margin-top:4px"><span class="badge ${genreClass(b.genre)}" style="font-size:12px">${esc(b.genre)}</span></div>
             </div>
             <div>
-              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Статус</div>
-              <div style="margin-top:4px">${chip(b.status)}</div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Ваш статус</div>
+              <div style="margin-top:4px">${chip(myStatus)}</div>
             </div>
             <div>
-              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Страниц</div>
-              <div style="margin-top:4px;font-weight:700">${b.pages}</div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Формат</div>
+              <div style="margin-top:4px;font-weight:700">${fmtIcon} ${esc(myFormat)}</div>
             </div>
             <div>
-              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Прочитано</div>
-              <div style="margin-top:4px;font-weight:700;color:var(--neon-cyan)">${b.progress} / ${b.pages} <span style="color:var(--text-dim);font-weight:400">(${p}%)</span></div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Ваш прогресс</div>
+              <div style="margin-top:4px;font-weight:700;color:var(--neon-cyan)">${myProgress} / ${b.pages} <span style="color:var(--text-dim);font-weight:400">(${p}%)</span></div>
             </div>
           </div>
           <div class="progress" style="height:10px;margin-top:18px"><span style="width:${p}%"></span></div>
@@ -903,15 +962,28 @@ async function renderBook(){
         </div>
 
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-          <button class="btn ${b.status==='reading'?'primary':''}" style="${b.status==='reading'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'reading')">Читаю</button>
-          <button class="btn ${b.status==='done'?'primary':''}" style="${b.status==='done'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'done')">Прочитано</button>
-          <button class="btn ${b.status==='planned'?'primary':''}" style="${b.status==='planned'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'planned')">В планах</button>
+          <button class="btn ${myStatus==='reading'?'primary':''}" style="${myStatus==='reading'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'reading')">Читаю</button>
+          <button class="btn ${myStatus==='done'?'primary':''}" style="${myStatus==='done'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'done')">Прочитано</button>
+          <button class="btn ${myStatus==='planned'?'primary':''}" style="${myStatus==='planned'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'planned')">В планах</button>
           <button class="btn ghost" onclick="openQuoteModal(${b.id})">❝ Цитата</button>
         </div>
+
+        <div class="sec-head" style="margin-top:30px"><h2>Кто читает</h2><div class="sub">${readers.length} читателей</div></div>
+        <div class="card" style="padding:6px 18px">${readerRows}</div>
+
         <div class="sec-head" style="margin-top:30px"><h2>Отзывы и оценки</h2><div class="sub" id="revCount">Загрузка...</div></div>
         <div class="card" style="background:var(--bg-2)">
           <b>Оставить отзыв</b>
-          <div class="stars" id="reviewStars" style="margin:10px 0">${starRow(0)}</div>
+          <div style="display:flex;gap:30px;margin:12px 0;flex-wrap:wrap">
+            <div>
+              <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">Оценка книги</div>
+              <div class="stars" id="reviewStars" style="font-size:20px">${starRow(0)}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">Оценка сюжета</div>
+              <div class="stars" id="storyStars" style="font-size:20px">${starRow(0)}</div>
+            </div>
+          </div>
           <div class="field" style="margin:0"><textarea id="reviewText" placeholder="Поделитесь впечатлениями..."></textarea></div>
           <div class="actions" style="margin-top:12px"><button class="btn primary" onclick="addReview(${b.id})">Опубликовать отзыв</button></div>
         </div>
@@ -922,7 +994,14 @@ async function renderBook(){
   loadReviews(b.id);
 }
 function starRow(n){let s='';for(let i=1;i<=5;i++){s+=`<span class="star ${i<=n?'lit':''}" data-v="${i}">★</span>`;}return s;}
-function bindReviewStars(){$('#reviewStars').addEventListener('click',e=>{const st=e.target.closest('.star');if(!st)return;const v=+st.dataset.v;document.querySelectorAll('#reviewStars .star').forEach(x=>x.classList.toggle('lit',+x.dataset.v<=v));window._reviewStars=v;});}
+function bindStars(sel,store){
+  const el=document.querySelector(sel);if(!el)return;
+  el.addEventListener('click',e=>{const st=e.target.closest('.star');if(!st)return;const v=+st.dataset.v;document.querySelectorAll(sel+' .star').forEach(x=>x.classList.toggle('lit',+x.dataset.v<=v));store(v);});
+}
+function bindReviewStars(){
+  bindStars('#reviewStars',v=>{window._reviewStars=v;});
+  bindStars('#storyStars',v=>{window._storyStars=v;});
+}
 async function loadReviews(bid){
   const list=$('#reviewList');const cnt=$('#revCount');
   try{
@@ -934,7 +1013,10 @@ async function loadReviews(bid){
         <div style="display:flex;align-items:center;gap:12px">
           <span class="av" style="background:${avColor(r.user_color||u.color)}">${initials(r.user_name||u.name)}</span>
           <div><b style="font-size:14px">${esc(r.user_name||u.name)}</b>
-          <div class="stars" style="font-size:16px;cursor:default">${starRow(r.stars)}</div></div>
+          <div style="display:flex;gap:16px;margin-top:4px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--text-dim)">Книга: ${starRow(r.stars)}</span>
+            ${r.story_stars?`<span style="font-size:12px;color:var(--text-dim)">Сюжет: ${starRow(r.story_stars)}</span>`:''}
+          </div></div>
         </div>
         <p>«${esc(r.text)}»</p>
       </div>`;
@@ -1028,9 +1110,9 @@ async function deleteUser(id,name){
 
 async function quickStatus(id,st){
   const b=BOOKS.find(x=>x.id===id);if(!b)return;
-  const nb=await api('/api/books/'+id,{method:'PATCH',body:{status:st}});
-  Object.assign(b,nb);renderBook();renderDashboard();renderLibrary();
-  toast(`Статус: ${st==='reading'?'Читают':st==='done'?'Прочитано':'В планах'}`);
+  await api('/api/books/'+id,{method:'PATCH',body:{status:st}});
+  await loadAll();renderBook();renderDashboard();renderLibrary();
+  toast(`Статус: ${st==='reading'?'Читаю':st==='done'?'Прочитано':'В планах'}`);
 }
 
 /* --- Book modal --- */
@@ -1045,8 +1127,8 @@ async function addBook(){
   const t=$('#bkTitle').value.trim(),a=$('#bkAuthor').value.trim(),p=+$('#bkPages').value||1;
   if(!t){toast('Введите название книги','pink');return;}
   try{
-    const b=await api('/api/books',{method:'POST',body:{title:t,author:a,genre:$('#bkGenre').value,pages:p,cover:$('#bkCover').value.trim(),status:bkStatusSel}});
-    BOOKS.unshift(b);closeModal('bookOverlay');renderLibrary();renderDashboard();
+    const b=await api('/api/books',{method:'POST',body:{title:t,author:a,genre:$('#bkGenre').value,pages:p,cover:$('#bkCover').value.trim(),status:bkStatusSel,format:$('#bkFormat').value}});
+    BOOKS.unshift(b);closeModal('bookOverlay');await loadAll();renderLibrary();renderDashboard();
     toast(`Книга «${t}» добавлена`);
   }catch(err){toast(err.message,'pink');}
 }
@@ -1054,10 +1136,14 @@ async function addBook(){
 /* --- Progress modal --- */
 function openProgressModal(id){
   const b=BOOKS.find(x=>x.id===id);if(!b)return;editingProgress=id;currentBookId=id;
-  const s=$('#prgSlider');s.max=b.pages;s.value=b.progress;
+  const myReader=(b.readers||[]).find(x=>x.user_id===me.id);
+  const s=$('#prgSlider');s.max=b.pages;s.value=myReader?myReader.progress:0;
   $('#prgTitle').textContent='Прогресс: '+b.title;
   $('#prgMax').textContent=b.pages;updatePrgVal();
-  prgStatusSel=b.status;
+  prgStatusSel=myReader?myReader.status:'planned';
+  $('#prgFormat').value=myReader?myReader.format:'Электронная';
+  $('#prgStart').value=myReader&&myReader.started_at?toDateInput(myReader.started_at):'';
+  $('#prgFinish').value=myReader&&myReader.finished_at?toDateInput(myReader.finished_at):'';
   document.querySelectorAll('#prgStatusPills .pill').forEach(p=>p.classList.toggle('active',p.dataset.st===prgStatusSel));
   $('#progressOverlay').classList.add('show');
 }
@@ -1067,11 +1153,14 @@ document.querySelectorAll('#prgStatusPills .pill').forEach(p=>p.addEventListener
 async function saveProgress(){
   const b=BOOKS.find(x=>x.id===editingProgress);if(!b)return;
   try{
-    const nb=await api('/api/books/'+b.id,{method:'PATCH',body:{progress:+$('#prgSlider').value,status:prgStatusSel}});
+    const st=$('#prgStart').value||null;
+    const fn=$('#prgFinish').value||null;
+    const nb=await api('/api/books/'+b.id,{method:'PATCH',body:{progress:+$('#prgSlider').value,status:prgStatusSel,format:$('#prgFormat').value,started_at:st,finished_at:fn}});
     Object.assign(b,nb);closeModal('progressOverlay');
-    renderBook();renderLibrary();renderDashboard();toast('Прогресс сохранён');
+    await loadAll();renderBook();renderLibrary();renderDashboard();toast('Прогресс сохранён');
   }catch(err){toast(err.message,'pink');}
 }
+function toDateInput(s){if(!s)return '';const d=new Date(s);if(isNaN(d))return '';return d.toISOString().slice(0,10);}
 
 /* --- Quote modal --- */
 function openQuoteModal(bookId){
@@ -1116,12 +1205,14 @@ async function addComment(id,input){
 
 /* --- Review --- */
 async function addReview(bid){
-  const text=$('#reviewText').value.trim();const stars=window._reviewStars||0;
+  const text=$('#reviewText').value.trim();const stars=window._reviewStars||0;const story=window._storyStars||0;
   if(!text){toast('Напишите текст отзыва','pink');return;}
-  if(!stars){toast('Поставьте оценку','pink');return;}
+  if(!stars){toast('Поставьте оценку книги','pink');return;}
+  if(!story){toast('Поставьте оценку сюжета','pink');return;}
   try{
-    await api('/api/books/'+bid+'/reviews',{method:'POST',body:{stars,text}});
-    $('#reviewText').value='';loadReviews(bid);toast('Отзыв опубликован');
+    await api('/api/books/'+bid+'/reviews',{method:'POST',body:{stars,story_stars:story,text}});
+    $('#reviewText').value='';window._reviewStars=0;window._storyStars=0;
+    loadReviews(bid);toast('Отзыв опубликован');
   }catch(err){toast(err.message,'pink');}
 }
 

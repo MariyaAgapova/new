@@ -42,6 +42,7 @@ db.exec(`
     book     INTEGER NOT NULL REFERENCES books(id),
     user     INTEGER NOT NULL REFERENCES users(id),
     stars    INTEGER NOT NULL,
+    story_stars INTEGER,
     text     TEXT NOT NULL,
     created  TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -69,9 +70,39 @@ db.exec(`
     text     TEXT NOT NULL,
     created  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS reading (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user       INTEGER NOT NULL REFERENCES users(id),
+    book       INTEGER NOT NULL REFERENCES books(id),
+    status     TEXT NOT NULL DEFAULT 'planned',
+    progress   INTEGER NOT NULL DEFAULT 0,
+    format     TEXT NOT NULL DEFAULT 'Электронная',
+    started_at TEXT,
+    finished_at TEXT,
+    created    TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user, book)
+  );
 `);
 /* Миграция: добавляем колонку role, если её нет */
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'"); } catch (e) {}
+/* Миграция: добавляем колонку story_stars в reviews */
+try { db.exec("ALTER TABLE reviews ADD COLUMN story_stars INTEGER"); } catch (e) {}
+/* Миграция: переносим старые глобальные статусы книг в личный прогресс (reading) */
+(function migrateReading() {
+  const books = db.prepare(`
+    SELECT b.* FROM books b
+    WHERE NOT EXISTS (SELECT 1 FROM reading r WHERE r.book = b.id AND r.user = b.owner)
+  `).all();
+  if (!books.length) return;
+  const now = new Date().toISOString();
+  const ins = db.prepare(`INSERT INTO reading (user,book,status,progress,format,started_at,finished_at) VALUES (?,?,?,?,?,?,?)`);
+  for (const b of books) {
+    ins.run(b.owner, b.id, b.status || 'planned', b.progress || 0, 'Электронная',
+      (b.status === 'reading') ? now : null, (b.status === 'done') ? now : null);
+  }
+  console.log(`Миграция: создано ${books.length} записей чтения`);
+})();
 
 /* ===================== UTIL ===================== */
 function userPublic(u) {
@@ -121,8 +152,8 @@ function seed() {
   const c = db.prepare('INSERT INTO comments (quote,user,text) VALUES (?,?,?)');
   c.run(q1, mark, 'Лучшая цитата в книге!');
   c.run(q2, uid, 'Цитата дня точно.');
-  const r = db.prepare('INSERT INTO reviews (book,user,stars,text) VALUES (?,?,?,?)');
-  r.run(bdune, uid, 5, 'Эпос мирового масштаба. Мир пустыни затягивает целиком.');
+  const r = db.prepare('INSERT INTO reviews (book,user,stars,story_stars,text) VALUES (?,?,?,?,?)');
+  r.run(bdune, uid, 5, 5, 'Эпос мирового масштаба. Мир пустыни затягивает целиком.');
   console.log('Демо-данные созданы. Вход: anya@demo.ru / demo1234');
 }
 seed();
@@ -210,6 +241,7 @@ app.delete('/api/users/:id', auth, requireAdmin, asyncH(async (req, res) => {
     db.prepare('DELETE FROM quote_likes WHERE user = ?').run(target);
     db.prepare('DELETE FROM reviews WHERE user = ?').run(target);
     db.prepare('DELETE FROM quotes WHERE user = ?').run(target);
+    db.prepare('DELETE FROM reading WHERE user = ?').run(target);
     db.prepare('DELETE FROM users WHERE id = ?').run(target);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
@@ -217,41 +249,110 @@ app.delete('/api/users/:id', auth, requireAdmin, asyncH(async (req, res) => {
 }));
 
 /* ---------- BOOKS ---------- */
-app.get('/api/books', asyncH(async (req, res) => {
+function bookSummary() {
   const books = db.prepare(`
     SELECT b.*, u.name AS owner_name, u.color AS owner_color,
       (SELECT COUNT(*) FROM reviews r WHERE r.book = b.id) AS reviews_count
     FROM books b JOIN users u ON u.id = b.owner ORDER BY b.id DESC
   `).all();
-  res.json(books);
+  const ids = books.map(b => b.id);
+  let readings = [];
+  if (ids.length) {
+    readings = db.prepare(`SELECT r.*, u.name AS user_name, u.color AS user_color
+      FROM reading r JOIN users u ON u.id = r.user
+      WHERE r.book IN (${ids.map(() => '?').join(',')})
+      ORDER BY r.id ASC`).all(...ids);
+  }
+  const byBook = {};
+  for (const r of readings) {
+    if (!byBook[r.book]) byBook[r.book] = [];
+    byBook[r.book].push({
+      user_id: r.user, user_name: r.user_name, user_color: r.user_color,
+      status: r.status, progress: r.progress, format: r.format,
+      started_at: r.started_at, finished_at: r.finished_at,
+    });
+  }
+  for (const b of books) {
+    b.readers = byBook[b.id] || [];
+    b.reading_count = (b.readers||[]).filter(x => x.status === 'reading').length;
+    b.done_count = (b.readers||[]).filter(x => x.status === 'done').length;
+    b.planned_count = (b.readers||[]).filter(x => x.status === 'planned').length;
+  }
+  return books;
+}
+
+app.get('/api/books', asyncH(async (req, res) => {
+  res.json(bookSummary());
 }));
 
 app.post('/api/books', auth, asyncH(async (req, res) => {
-  const { title, author, genre, pages, cover, status } = req.body || {};
+  const { title, author, genre, pages, cover, status, format } = req.body || {};
   if (!title || !pages) return res.status(400).json({ error: 'Название и страницы обязательны' });
+  const newStatus = status || 'planned';
   const r = db.prepare(
     'INSERT INTO books (title,author,genre,pages,cover,status,progress,owner) VALUES (?,?,?,?,?,?,?,?)'
   ).run(title.trim(), author || 'Неизвестный автор', genre || 'Классика',
-    +pages, cover || '', status || 'planned', status === 'done' ? +pages : 0, req.user.id);
+    +pages, cover || '', newStatus, newStatus === 'done' ? +pages : 0, req.user.id);
   const book = db.prepare('SELECT * FROM books WHERE id = ?').get(r.lastInsertRowid);
+  // Создаём личную запись чтения для владельца
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO reading (user,book,status,progress,format,started_at,finished_at) VALUES (?,?,?,?,?,?,?)`)
+    .run(req.user.id, book.id, newStatus, newStatus === 'done' ? +pages : 0, format || 'Электронная',
+      newStatus === 'reading' ? now : null, newStatus === 'done' ? now : null);
   res.status(201).json(book);
 }));
 
 app.patch('/api/books/:id', auth, asyncH(async (req, res) => {
   const b = db.prepare('SELECT * FROM books WHERE id = ?').get(+req.params.id);
   if (!b) return res.status(404).json({ error: 'Не найдена' });
-  const { progress, status, cover } = req.body || {};
+  const { progress, status, cover, format, started_at, finished_at } = req.body || {};
   if (progress !== undefined && (isNaN(+progress) || +progress < 0 || +progress > b.pages))
     return res.status(400).json({ error: 'Некорректный прогресс' });
-  const newProgress = progress !== undefined ? +progress : b.progress;
-  const newStatus = status || b.status;
-  const finalProgress = newStatus === 'done' ? b.pages : (newStatus === 'reading' && newProgress === 0 ? 0 : newProgress);
   let newCover = b.cover;
   if (cover !== undefined) {
     if (typeof cover !== 'string') return res.status(400).json({ error: 'Некорректная обложка' });
     newCover = cover;
   }
-  db.prepare('UPDATE books SET progress = ?, status = ?, cover = ? WHERE id = ?').run(finalProgress, newStatus, newCover, b.id);
+  if (cover !== undefined) {
+    db.prepare('UPDATE books SET cover = ? WHERE id = ?').run(newCover, b.id);
+  }
+  // Личный прогресс/статус в таблице reading
+  if (progress !== undefined || status !== undefined || format !== undefined || started_at !== undefined || finished_at !== undefined) {
+    const cur = db.prepare('SELECT * FROM reading WHERE user = ? AND book = ?').get(req.user.id, b.id);
+    if (!cur) {
+      // если записи нет — создаём
+      const now = new Date().toISOString();
+      const st = status || 'planned';
+      db.prepare(`INSERT INTO reading (user,book,status,progress,format,started_at,finished_at) VALUES (?,?,?,?,?,?,?)`)
+        .run(req.user.id, b.id, st, (progress !== undefined ? +progress : 0),
+          format || 'Электронная', started_at !== undefined ? started_at : (st === 'reading' ? now : null), finished_at !== undefined ? finished_at : (st === 'done' ? now : null));
+    } else {
+      const newProgress = progress !== undefined ? +progress : cur.progress;
+      const newStatus = status || cur.status;
+      const newFormat = format || cur.format;
+      const finalProgress = newStatus === 'done' ? b.pages : newProgress;
+      const now = new Date().toISOString();
+      let started = started_at !== undefined ? started_at : cur.started_at;
+      let finished = finished_at !== undefined ? finished_at : cur.finished_at;
+      if (started_at === null) started = null;
+      if (finished_at === null) finished = null;
+      if (newStatus === 'reading' && !started) started = now;
+      if (newStatus === 'done' && !finished) finished = now;
+      if (newStatus !== 'done' && finished && finished_at === undefined) finished = null;
+      db.prepare(`UPDATE reading SET status=?, progress=?, format=?, started_at=?, finished_at=? WHERE user=? AND book=?`)
+        .run(newStatus, finalProgress, newFormat, started, finished, req.user.id, b.id);
+    }
+    // поддерживаем глобальный статус книги (для дашборда) из сводки читателей
+    const summary = db.prepare(`SELECT
+        SUM(CASE WHEN status='reading' THEN 1 ELSE 0 END) AS rd,
+        SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) AS dn,
+        SUM(CASE WHEN status='planned' THEN 1 ELSE 0 END) AS pl,
+        MAX(progress) AS mx
+      FROM reading WHERE book = ?`).get(b.id);
+    const gStatus = (summary.dn > 0) ? 'done' : ((summary.rd > 0) ? 'reading' : 'planned');
+    const gProgress = summary.mx || 0;
+    db.prepare('UPDATE books SET status = ?, progress = ? WHERE id = ?').run(gStatus, gProgress, b.id);
+  }
   const book = db.prepare('SELECT * FROM books WHERE id = ?').get(b.id);
   res.json(book);
 }));
@@ -268,6 +369,7 @@ app.delete('/api/books/:id', auth, asyncH(async (req, res) => {
     for (const q of qs) { delC.run(q.id); delL.run(q.id); }
     db.prepare('DELETE FROM quotes WHERE book = ?').run(b.id);
     db.prepare('DELETE FROM reviews WHERE book = ?').run(b.id);
+    db.prepare('DELETE FROM reading WHERE book = ?').run(b.id);
     db.prepare('DELETE FROM books WHERE id = ?').run(b.id);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
@@ -276,12 +378,14 @@ app.delete('/api/books/:id', auth, asyncH(async (req, res) => {
 
 /* ---------- REVIEWS ---------- */
 app.post('/api/books/:id/reviews', auth, asyncH(async (req, res) => {
-  const { stars, text } = req.body || {};
+  const { stars, story_stars, text } = req.body || {};
   if (!text || !stars || +stars < 1 || +stars > 5) return res.status(400).json({ error: 'Некорректный отзыв' });
+  if (story_stars !== undefined && (isNaN(+story_stars) || +story_stars < 0 || +story_stars > 5))
+    return res.status(400).json({ error: 'Некорректная оценка сюжета' });
   const b = db.prepare('SELECT id FROM books WHERE id = ?').get(+req.params.id);
   if (!b) return res.status(404).json({ error: 'Книга не найдена' });
-  const r = db.prepare('INSERT INTO reviews (book,user,stars,text) VALUES (?,?,?,?)')
-    .run(b.id, req.user.id, +stars, text.trim());
+  const r = db.prepare('INSERT INTO reviews (book,user,stars,story_stars,text) VALUES (?,?,?,?,?)')
+    .run(b.id, req.user.id, +stars, story_stars !== undefined ? +story_stars : null, text.trim());
   const rev = db.prepare(`SELECT r.*, u.name AS user_name, u.color AS user_color
     FROM reviews r JOIN users u ON u.id = r.user WHERE r.id = ?`).get(r.lastInsertRowid);
   res.status(201).json(rev);
@@ -291,6 +395,16 @@ app.get('/api/books/:id/reviews', asyncH(async (req, res) => {
   const rows = db.prepare(`SELECT r.*, u.name AS user_name, u.color AS user_color
     FROM reviews r JOIN users u ON u.id = r.user WHERE r.book = ? ORDER BY r.id DESC`).all(+req.params.id);
   res.json(rows);
+}));
+
+app.get('/api/books/:id/readers', asyncH(async (req, res) => {
+  const bookId = +req.params.id;
+  const readers = db.prepare(`SELECT r.*, u.name AS user_name, u.color AS user_color
+    FROM reading r JOIN users u ON u.id = r.user WHERE r.book = ? ORDER BY
+      CASE r.status WHEN 'reading' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END, r.id ASC`).all(bookId);
+  const reviews = db.prepare(`SELECT r.*, u.name AS user_name, u.color AS user_color
+    FROM reviews r JOIN users u ON u.id = r.user WHERE r.book = ? ORDER BY r.id DESC`).all(bookId);
+  res.json({ readers, reviews });
 }));
 
 /* ---------- QUOTES ---------- */
@@ -368,6 +482,60 @@ app.get('/api/activity', asyncH(async (req, res) => {
     .all().forEach(c => acts.push({ type: 'comment', text: `${c.uname} оставил комментарий`, at: c.created }));
   acts.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   res.json(acts.slice(0, 8));
+}));
+
+/* ---------- EXPORT / IMPORT (бэкап данных) ---------- */
+app.get('/api/backup/export', auth, requireAdmin, asyncH(async (req, res) => {
+  const dump = {
+    exportedAt: new Date().toISOString(),
+    users: db.prepare('SELECT * FROM users').all(),
+    books: db.prepare('SELECT * FROM books').all(),
+    reviews: db.prepare('SELECT * FROM reviews').all(),
+    quotes: db.prepare('SELECT * FROM quotes').all(),
+    quote_likes: db.prepare('SELECT * FROM quote_likes').all(),
+    comments: db.prepare('SELECT * FROM comments').all(),
+    reading: db.prepare('SELECT * FROM reading').all(),
+  };
+  res.set('Content-Disposition', 'attachment; filename="nocturnal-backup.json"');
+  res.set('Content-Type', 'application/json');
+  res.json(dump);
+}));
+
+app.post('/api/backup/import', auth, requireAdmin, asyncH(async (req, res) => {
+  const d = req.body && req.body.data;
+  if (!d || !Array.isArray(d.users) || !Array.isArray(d.books))
+    return res.status(400).json({ error: 'Некорректный файл бэкапа' });
+  db.exec('BEGIN');
+  try {
+    // Очищаем все таблицы (порядок: дочерние к родительским)
+    db.exec(`
+      DELETE FROM comments;
+      DELETE FROM quote_likes;
+      DELETE FROM quotes;
+      DELETE FROM reviews;
+      DELETE FROM reading;
+      DELETE FROM books;
+      DELETE FROM users;
+    `);
+    const insUser = db.prepare('INSERT INTO users (id,name,email,pass,color,role,active,created) VALUES (?,?,?,?,?,?,?,?)');
+    for (const u of d.users) insUser.run(u.id, u.name, u.email, u.pass, u.color, u.role || 'user', u.active == null ? 1 : u.active, u.created);
+    const insBook = db.prepare('INSERT INTO books (id,title,author,genre,pages,cover,status,progress,owner,created) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    for (const b of d.books) insBook.run(b.id, b.title, b.author, b.genre, b.pages, b.cover || '', b.status || 'planned', b.progress || 0, b.owner, b.created);
+    const insRev = db.prepare('INSERT INTO reviews (id,book,user,stars,story_stars,text,created) VALUES (?,?,?,?,?,?,?)');
+    for (const r of (d.reviews || [])) insRev.run(r.id, r.book, r.user, r.stars, r.story_stars || null, r.text, r.created);
+    const insQ = db.prepare('INSERT INTO quotes (id,book,user,text,page,created) VALUES (?,?,?,?,?,?)');
+    for (const q of (d.quotes || [])) insQ.run(q.id, q.book, q.user, q.text, q.page, q.created);
+    const insL = db.prepare('INSERT INTO quote_likes (quote,user) VALUES (?,?)');
+    for (const l of (d.quote_likes || [])) insL.run(l.quote, l.user);
+    const insC = db.prepare('INSERT INTO comments (id,quote,user,parent,text,created) VALUES (?,?,?,?,?,?)');
+    for (const c of (d.comments || [])) insC.run(c.id, c.quote, c.user, c.parent || null, c.text, c.created);
+    const insR = db.prepare('INSERT INTO reading (id,user,book,status,progress,format,started_at,finished_at,created) VALUES (?,?,?,?,?,?,?,?,?)');
+    for (const r of (d.reading || [])) insR.run(r.id, r.user, r.book, r.status || 'planned', r.progress || 0, r.format || 'Электронная', r.started_at || null, r.finished_at || null, r.created);
+    // Сбрасываем AUTOINCREMENT на следующий id
+    db.exec(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM ${'users'}) WHERE name = 'users';`);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  res.json({ ok: true });
 }));
 
 /* ---------- ERROR + FALLBACK ---------- */
