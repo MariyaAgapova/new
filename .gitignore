@@ -1,0 +1,17 @@
+# Зависимости Node
+node_modules/
+
+# База данных (содержит данные пользователей — не загружать)
+nocturnal.db
+nocturnal.db-wal
+nocturnal.db-shm
+
+# Временные и динамические файлы
+tunnel_log.txt
+link.txt
+ссылка.txt
+*.log
+
+# Логи/временные файлы системы
+Thumbs.db
+.DS_Store

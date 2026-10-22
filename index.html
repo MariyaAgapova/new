@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nocturnal — читательский дневник</title>
+<style>
+/* ============ DESIGN SYSTEM / TOKENS ============ */
+:root{
+  --bg-0:#121214;
+  --bg-1:#18181B;
+  --bg-2:#1F1F24;
+  --bg-3:#26262C;
+  --line:#2C2C33;
+  --text:#ECECEF;
+  --text-dim:#9A9AA3;
+  --text-faint:#6E6E78;
+
+  --neon-violet:#9D4EDD;
+  --neon-cyan:#00F5D4;
+  --neon-pink:#FF007F;
+
+  --violet-glow:0 0 22px rgba(157,78,221,.35),0 0 2px rgba(157,78,221,.6);
+  --cyan-glow:0 0 22px rgba(0,245,212,.30),0 0 2px rgba(0,245,212,.55);
+  --pink-glow:0 0 22px rgba(255,0,127,.30),0 0 2px rgba(255,0,127,.55);
+
+  --sans:'Inter','Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  --serif:'Playfair Display','Lora',Georgia,serif;
+
+  --r:16px;
+  --t:all .3s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg-0);
+  color:var(--text);
+  min-height:100vh;
+  line-height:1.5;
+  background-image:
+    radial-gradient(1000px 500px at 85% -10%, rgba(157,78,221,.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(0,245,212,.07), transparent 55%);
+  background-attachment:fixed;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;color:inherit;width:100%}
+img{display:block}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:99px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============ LAYOUT ============ */
+.app{max-width:1280px;margin:0 auto;padding:0 24px 80px}
+
+/* ============ TOPBAR ============ */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:20px;
+  padding:18px 0;margin-bottom:12px;
+  backdrop-filter:blur(12px);
+  background:linear-gradient(to bottom, rgba(18,18,20,.85), rgba(18,18,20,.6));
+}
+.brand{display:flex;align-items:center;gap:12px;font-weight:700;letter-spacing:.4px}
+.brand .logo{
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--neon-violet),var(--neon-cyan));
+  color:#fff;font-family:var(--serif);font-size:20px;
+  box-shadow:var(--violet-glow);
+}
+.brand small{display:block;font-weight:500;font-size:11px;color:var(--text-faint);letter-spacing:1.5px}
+.nav{display:flex;gap:6px;margin-left:8px}
+.nav button{
+  padding:9px 16px;border-radius:12px;font-size:14px;color:var(--text-dim);
+  transition:var(--t);position:relative;
+}
+.nav button:hover{color:var(--text);background:var(--bg-2)}
+.nav button.active{color:#fff;background:var(--bg-2)}
+.nav button.active::after{
+  content:'';position:absolute;left:16px;right:16px;bottom:2px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--neon-violet),var(--neon-cyan));
+  box-shadow:var(--cyan-glow);
+}
+.topbar .spacer{flex:1}
+.avatar-stack{display:flex;align-items:center}
+
+/* ============ AVATARS ============ */
+.av{
+  width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+  font-weight:700;font-size:14px;color:#fff;position:relative;
+  border:2px solid var(--bg-0);transition:var(--t);
+}
+.av.clickable{cursor:pointer}
+.av.clickable:hover{transform:translateY(-2px)}
+.av.active{outline:2px solid var(--neon-cyan);box-shadow:var(--cyan-glow)}
+.av .dot{
+  position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;
+  border:2px solid var(--bg-0);
+}
+.av .dot.on{background:var(--neon-cyan);box-shadow:var(--cyan-glow)}
+.av .dot.off{background:var(--text-faint)}
+.avatar-stack .av{margin-left:-10px}
+
+/* ============ GRID ============ */
+.grid{display:grid;gap:24px}
+.dash-grid{grid-template-columns:1fr 340px}
+.kb-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+
+/* ============ SECTION HEADER ============ */
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin:34px 0 18px}
+.sec-head h2{font-size:20px;font-weight:700}
+.sec-head .sub{color:var(--text-faint);font-size:13px;margin-top:2px}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;
+  background:var(--bg-2);color:var(--text);transition:var(--t);border:1px solid var(--line);
+}
+.btn:hover{transform:translateY(-2px);border-color:var(--neon-violet)}
+.btn.primary{
+  background:linear-gradient(135deg,var(--neon-violet),var(--neon-pink));
+  border:none;box-shadow:var(--violet-glow);
+}
+.btn.primary:hover{box-shadow:0 0 30px rgba(157,78,221,.55)}
+.btn.ghost{border:1px solid var(--line);background:transparent}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ============ CARDS ============ */
+.card{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);
+  padding:22px;transition:var(--t);
+}
+.card.hoverable:hover{transform:translateY(-4px);border-color:rgba(157,78,221,.5);box-shadow:var(--violet-glow)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.stat{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px;position:relative;overflow:hidden;transition:var(--t);
+}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:.7}
+.stat.v::before{background:linear-gradient(90deg,var(--neon-violet),transparent)}
+.stat.c::before{background:linear-gradient(90deg,var(--neon-cyan),transparent)}
+.stat.p::before{background:linear-gradient(90deg,var(--neon-pink),transparent)}
+.stat .num{font-size:28px;font-weight:800}
+.stat .lbl{color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.stat .num.v{color:var(--neon-violet);text-shadow:0 0 18px rgba(157,78,221,.5)}
+.stat .num.c{color:var(--neon-cyan);text-shadow:0 0 18px rgba(0,245,212,.4)}
+.stat .num.p{color:var(--neon-pink);text-shadow:0 0 18px rgba(255,0,127,.4)}
+
+/* ============ BOOK CARD ============ */
+.book{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:12px;
+  overflow:hidden;transition:var(--t);cursor:pointer;position:relative;
+  display:flex;align-items:stretch;
+}
+.book:hover{transform:translateX(3px);box-shadow:var(--violet-glow);border-color:rgba(157,78,221,.45)}
+.book .cover{
+  position:relative;width:48px;min-height:72px;flex-shrink:0;background:var(--bg-3);
+  display:grid;place-items:center;overflow:hidden;
+}
+.book .cover img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease}
+.book:hover .cover img{transform:scale(1.06)}
+.book .cover .fallback{font-family:var(--serif);font-size:14px;color:var(--neon-violet);text-shadow:var(--violet-glow)}
+.book .status-chip{
+  padding:2px 8px;border-radius:99px;
+  font-size:10px;font-weight:700;letter-spacing:.3px;backdrop-filter:blur(6px);
+  flex-shrink:0;
+}
+.book .status-chip.reading{background:rgba(0,245,212,.16);color:var(--neon-cyan);border:1px solid rgba(0,245,212,.4)}
+.book .status-chip.done{background:rgba(157,78,221,.16);color:var(--neon-violet);border:1px solid rgba(157,78,221,.4)}
+.book .status-chip.planned{background:rgba(255,0,127,.14);color:var(--neon-pink);border:1px solid rgba(255,0,127,.4)}
+.book .body{padding:12px 14px;display:flex;flex-direction:column;gap:6px;flex:1;min-width:0;justify-content:center}
+.book .body h3{font-size:14px;font-weight:700;line-height:1.25}
+.book .body .author{color:var(--text-dim);font-size:13px}
+.book .meta{display:flex;align-items:center;justify-content:space-between;margin-top:auto;gap:8px;flex-wrap:wrap}
+.badge{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;letter-spacing:.3px;
+  background:rgba(157,78,221,.12);color:var(--neon-violet);border:1px solid rgba(157,78,221,.3);
+}
+.badge.c{background:rgba(0,245,212,.1);color:var(--neon-cyan);border-color:rgba(0,245,212,.3)}
+.badge.p{background:rgba(255,0,127,.1);color:var(--neon-pink);border-color:rgba(255,0,127,.3)}
+.book .pages{color:var(--text-faint);font-size:11px;white-space:nowrap}
+.book .progress{height:5px;margin:2px 0}
+
+/* ============ PROGRESS ============ */
+.progress{height:8px;border-radius:99px;background:var(--bg-3);overflow:hidden;position:relative}
+.progress > span{
+  display:block;height:100%;border-radius:99px;transition:width .6s cubic-bezier(.22,1,.36,1);
+  background:linear-gradient(90deg,var(--neon-violet),var(--neon-cyan));
+  box-shadow:0 0 12px rgba(0,245,212,.5);position:relative;
+}
+.progress > span::after{
+  content:'';position:absolute;inset:0;border-radius:99px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+  animation:shimmer 2.4s linear infinite;
+}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.pct{font-size:13px;color:var(--neon-cyan);font-weight:700}
+
+/* ============ USER PROGRESS ROW ============ */
+.up-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.up-row:last-child{border-bottom:none}
+.up-row .av{width:32px;height:32px;font-size:12px;flex-shrink:0}
+.up-row .grow{flex:1;min-width:0}
+.up-row .name{font-size:13px;font-weight:600}
+.up-row .cnt{font-size:11px;color:var(--text-faint)}
+
+/* ============ QUOTE FEED ============ */
+.feed{display:grid;gap:20px}
+.quote{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);padding:26px;
+  position:relative;transition:var(--t);overflow:hidden;
+}
+.quote:hover{border-color:rgba(0,245,212,.4);box-shadow:var(--cyan-glow)}
+.quote::before{
+  content:'';position:absolute;top:0;left:0;width:3px;height:100%;
+  background:linear-gradient(180deg,var(--neon-cyan),var(--neon-violet));
+}
+.quote blockquote{
+  font-family:var(--serif);font-size:20px;font-style:italic;line-height:1.55;color:#fff;
+  padding:4px 0 4px 6px;
+}
+.quote .cite{
+  margin-top:14px;display:flex;align-items:center;gap:12px;color:var(--text-dim);font-size:13px;flex-wrap:wrap;
+}
+.quote .cite b{color:var(--neon-cyan);font-weight:700}
+.quote .page{
+  font-size:12px;color:var(--text-faint);background:var(--bg-3);
+  padding:3px 10px;border-radius:99px;margin-left:auto;
+}
+.quote .foot{display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.icon-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;
+  font-size:13px;color:var(--text-dim);transition:var(--t);background:var(--bg-2);
+}
+.icon-btn:hover{color:var(--neon-cyan);transform:translateY(-1px)}
+.icon-btn.liked{color:var(--neon-pink);background:rgba(255,0,127,.1)}
+.likers{display:flex;margin-left:auto}
+.likers .av{width:22px;height:22px;font-size:9px;margin-left:-6px;border-width:1px}
+
+/* ============ COMMENTS ============ */
+.comments{margin-top:14px;display:none;flex-direction:column;gap:12px}
+.quote.open .comments{display:flex}
+.comment{display:flex;gap:12px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.comment .av{width:30px;height:30px;font-size:12px;flex-shrink:0}
+.comment .c-head{display:flex;gap:8px;align-items:baseline}
+.comment .c-head b{font-size:13px}
+.comment .c-head time{font-size:11px;color:var(--text-faint)}
+.comment p{font-size:14px;color:var(--text-dim);margin-top:4px}
+.comment.reply{margin-left:34px}
+.comment-form{display:flex;gap:10px;align-items:center}
+.comment-form input{
+  flex:1;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;font-size:14px;transition:var(--t);
+}
+.comment-form input:focus{outline:none;border-color:var(--neon-violet);box-shadow:var(--violet-glow)}
+
+/* ============ BOOK DETAIL / REVIEWS ============ */
+.detail{display:grid;grid-template-columns:300px 1fr;gap:30px;margin-top:16px}
+.cover-big{aspect-ratio:2/3;border-radius:var(--r);overflow:hidden;background:var(--bg-3);box-shadow:var(--violet-glow);position:sticky;top:90px}
+.cover-big img{width:100%;height:100%;object-fit:cover}
+.cover-big .fallback{width:100%;height:100%;display:grid;place-items:center;font-family:var(--serif);font-size:60px;color:var(--neon-violet);text-shadow:var(--violet-glow)}
+.review{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);
+  padding:20px;margin-top:14px;
+}
+.review p{font-family:var(--serif);font-size:16px;line-height:1.6;color:var(--text-dim);margin-top:10px;font-style:italic}
+
+/* ============ STARS ============ */
+.stars{display:inline-flex;gap:4px;font-size:22px;color:var(--bg-3);cursor:pointer}
+.stars .star{transition:var(--t);color:var(--text-faint)}
+.stars .star.lit{color:var(--neon-pink);text-shadow:0 0 14px rgba(255,0,127,.7)}
+.stars .star:hover{transform:scale(1.2)}
+
+/* ============ MODAL ============ */
+.overlay{
+  position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:20px;
+  background:rgba(10,10,12,.7);backdrop-filter:blur(6px);
+}
+.overlay.show{display:grid;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  background:var(--bg-1);border:1px solid var(--line);border-radius:20px;width:100%;max-width:520px;
+  padding:28px;position:relative;animation:pop .3s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+@keyframes pop{from{opacity:0;transform:translateY(20px) scale(.96)}to{opacity:1;transform:none}}
+.modal h3{font-size:20px;margin-bottom:6px}
+.modal .close{position:absolute;top:18px;right:18px;width:32px;height:32px;border-radius:10px;background:var(--bg-2);transition:var(--t)}
+.modal .close:hover{background:var(--bg-3);color:var(--neon-pink)}
+.field{margin-top:16px}
+.field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:7px;letter-spacing:.4px}
+.field input,.field select,.field textarea{
+  background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;transition:var(--t);
+}
+.field textarea{min-height:90px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--neon-violet);box-shadow:var(--violet-glow)}
+.modal .actions{display:flex;gap:12px;justify-content:flex-end;margin-top:24px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ============ TOAST ============ */
+.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+.toast{
+  background:var(--bg-1);border:1px solid var(--neon-cyan);color:var(--text);
+  padding:13px 20px;border-radius:12px;font-size:14px;display:flex;align-items:center;gap:10px;
+  box-shadow:var(--cyan-glow);animation:toastIn .35s cubic-bezier(.22,1,.36,1);
+}
+.toast.hide{animation:toastOut .3s ease forwards}
+.toast .t-dot{width:8px;height:8px;border-radius:50%;background:var(--neon-cyan);box-shadow:var(--cyan-glow)}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px)}}
+
+/* ============ PILL SELECTOR ============ */
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{
+  padding:8px 14px;border-radius:99px;font-size:13px;font-weight:600;
+  border:1px solid var(--line);color:var(--text-dim);transition:var(--t);
+}
+.pill:hover{color:var(--text);border-color:var(--neon-violet)}
+.pill.active{color:#fff;border-color:var(--neon-cyan);box-shadow:var(--cyan-glow);background:rgba(0,245,212,.06)}
+
+/* ============ RANGE ============ */
+input[type=range]{-webkit-appearance:none;height:6px;border-radius:99px;background:var(--bg-3)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;
+  border:3px solid var(--neon-violet);box-shadow:var(--violet-glow);cursor:pointer;
+}
+.slider-lbl{display:flex;justify-content:space-between;font-size:13px;color:var(--text-dim);margin-top:6px}
+.slider-lbl b{color:var(--neon-cyan)}
+
+/* ============ EMPTY ============ */
+.empty{
+  text-align:center;padding:60px 20px;color:var(--text-faint);background:var(--bg-1);
+  border:1px dashed var(--line);border-radius:var(--r);
+}
+.empty .big{font-family:var(--serif);font-size:44px;color:var(--neon-violet);text-shadow:var(--violet-glow)}
+.empty p{margin-top:10px;font-size:15px}
+.empty button{margin-top:18px}
+
+/* ============ AUTH SCREEN ============ */
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+.auth-card{
+  width:100%;max-width:420px;background:var(--bg-1);border:1px solid var(--line);
+  border-radius:24px;padding:36px;position:relative;overflow:hidden;
+}
+.auth-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--neon-violet),var(--neon-cyan),var(--neon-pink));
+}
+.auth-card .logo{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;margin:0 auto 18px;
+  background:linear-gradient(135deg,var(--neon-violet),var(--neon-cyan));
+  font-family:var(--serif);font-size:26px;box-shadow:var(--violet-glow);
+}
+.auth-card h1{text-align:center;font-size:24px}
+.auth-card .auth-sub{text-align:center;color:var(--text-dim);font-size:14px;margin-top:6px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--bg-2);padding:5px;border-radius:12px;margin-top:24px}
+.auth-tabs button{padding:10px;border-radius:9px;font-size:14px;font-weight:600;color:var(--text-dim);transition:var(--t)}
+.auth-tabs button.active{background:var(--bg-3);color:var(--text);box-shadow:var(--violet-glow)}
+.auth-form{margin-top:20px;display:none;flex-direction:column;gap:14px}
+.auth-form.show{display:flex}
+.auth-form label{font-size:12px;color:var(--text-dim);margin-bottom:7px;letter-spacing:.4px;display:block}
+.auth-form input{
+  background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:13px 14px;font-size:14px;transition:var(--t);
+}
+.auth-form input:focus{outline:none;border-color:var(--neon-violet);box-shadow:var(--violet-glow)}
+.auth-error{display:none;background:rgba(255,0,127,.1);border:1px solid rgba(255,0,127,.4);color:var(--neon-pink);padding:11px 14px;border-radius:12px;font-size:13px}
+.auth-error.show{display:block}
+.auth-hint{margin-top:20px;text-align:center;color:var(--text-faint);font-size:12px;line-height:1.6}
+.auth-hint code{color:var(--neon-cyan);background:var(--bg-2);padding:2px 6px;border-radius:6px}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============ ADMIN ============ */
+.admin-table{width:100%;border-collapse:collapse}
+.admin-table th{text-align:left;padding:12px 14px;color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--line)}
+.admin-table td{padding:14px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}
+.admin-table tr:last-child td{border-bottom:none}
+.admin-table tr:hover{background:var(--bg-2)}
+.admin-role{font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;letter-spacing:.3px}
+.admin-role.admin{background:rgba(255,183,3,.12);color:#FFB703;border:1px solid rgba(255,183,3,.4)}
+.admin-role.user{background:rgba(157,78,221,.1);color:var(--neon-violet);border:1px solid rgba(157,78,221,.3)}
+.admin-delete{
+  padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;
+  background:rgba(255,0,127,.1);color:var(--neon-pink);border:1px solid rgba(255,0,127,.35);transition:var(--t);
+}
+.admin-delete:hover{background:rgba(255,0,127,.2);box-shadow:var(--pink-glow)}
+.admin-delete:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:980px){
+  .dash-grid{grid-template-columns:1fr}
+  .detail{grid-template-columns:1fr}
+  .cover-big{position:static;max-width:240px}
+}
+@media(max-width:680px){
+  .app{padding:0 16px 60px}
+  .nav{gap:4px}
+  .nav button{padding:8px 10px;font-size:12px}
+  .nav span.lbl{display:inline}
+  .row2{grid-template-columns:1fr}
+  .quote blockquote{font-size:17px}
+  .topbar{flex-wrap:wrap}
+  .avatar-stack{order:2}
+  .brand small{display:none}
+  .topbar .spacer{display:none}
+  .nav button.active::after{left:10px;right:10px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH SCREEN ============ -->
+<div id="authScreen" class="auth-wrap" style="display:none">
+  <div class="auth-card">
+    <div class="logo">N</div>
+    <h1>Nocturnal</h1>
+    <div class="auth-sub">Совместный читательский дневник</div>
+    <div class="auth-tabs">
+      <button id="tabLogin" class="active" onclick="setAuthTab('login')">Вход</button>
+      <button id="tabRegister" onclick="setAuthTab('register')">Регистрация</button>
+    </div>
+    <div class="auth-error" id="authError"></div>
+
+    <form class="auth-form show" id="formLogin" onsubmit="doLogin(event)">
+      <div><label>Email</label><input type="email" id="loginEmail" placeholder="you@mail.ru" required /></div>
+      <div><label>Пароль</label><input type="password" id="loginPass" placeholder="••••••" required /></div>
+      <button class="btn primary" style="justify-content:center;width:100%" id="loginBtn" type="submit">Войти</button>
+    </form>
+
+    <form class="auth-form" id="formRegister" onsubmit="doRegister(event)">
+      <div><label>Имя</label><input id="regName" placeholder="Как вас зовут?" required /></div>
+      <div><label>Email</label><input type="email" id="regEmail" placeholder="you@mail.ru" required /></div>
+      <div><label>Пароль</label><input type="password" id="regPass" placeholder="Минимум 4 символа" minlength="4" required /></div>
+      <button class="btn primary" style="justify-content:center;width:100%" id="regBtn" type="submit">Создать аккаунт</button>
+    </form>
+
+    <div class="auth-hint">Демо-доступ: <code>anya@demo.ru</code> / <code>demo1234</code><br/>или зарегистрируйте свой аккаунт</div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="app" style="display:none">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">N</div>
+      <div>Nocturnal<small>Читательский дневник</small></div>
+    </div>
+    <nav class="nav">
+      <button data-view="dashboard" class="active"><span class="lbl">📊 Обзор</span></button>
+      <button data-view="library"><span class="lbl">📚 Библиотека</span></button>
+      <button data-view="feed"><span class="lbl">❝ Лента цитат</span></button>
+      <button data-view="admin" id="navAdmin" style="display:none"><span class="lbl">Управление</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="avatar-stack" id="avatarStack"></div>
+    <button class="btn ghost" onclick="logout()" title="Выйти" style="padding:9px 14px">⏻</button>
+  </header>
+
+  <main>
+    <section id="view-dashboard" class="view">
+      <div class="sec-head">
+        <div><h2 id="dashHello">Обзор</h2><div class="sub" id="dashSub">Сводка по чтению</div></div>
+        <button class="btn primary" onclick="openBookModal()">+ Добавить книгу</button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat v"><div class="num v" id="stTotal">0</div><div class="lbl">В библиотеке</div></div>
+        <div class="stat c"><div class="num c" id="stReading">0</div><div class="lbl">Читают сейчас</div></div>
+        <div class="stat p"><div class="num p" id="stDone">0</div><div class="lbl">Прочитано</div></div>
+        <div class="stat"><div class="num" id="stPages">0</div><div class="lbl">Страниц всего</div></div>
+      </div>
+      <div class="grid dash-grid">
+        <div>
+          <div class="sec-head"><h2>Совместная лента</h2><div class="sub">Последние действия участников</div></div>
+          <div id="activityFeed"></div>
+        </div>
+        <div>
+          <div class="sec-head"><h2>Прогресс участников</h2><div class="sub">Кто сколько прочитал</div></div>
+          <div class="card" id="userProgress"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-library" class="view" style="display:none">
+      <div class="sec-head">
+        <div><h2>Библиотека</h2><div class="sub">Общие книги и прогресс</div></div>
+        <button class="btn primary" onclick="openBookModal()">+ Добавить книгу</button>
+      </div>
+      <div class="pills" id="libFilters" style="margin-bottom:18px">
+        <button class="pill active" data-f="all">Все</button>
+        <button class="pill" data-f="reading">В процессе</button>
+        <button class="pill" data-f="planned">В планах</button>
+        <button class="pill" data-f="done">Читают</button>
+      </div>
+      <div class="kb-grid" id="library"></div>
+    </section>
+
+    <section id="view-feed" class="view" style="display:none">
+      <div class="sec-head">
+        <div><h2>Лента цитат</h2><div class="sub">Лучшие моменты из книг</div></div>
+        <button class="btn primary" onclick="openQuoteModal()">+ Добавить цитату</button>
+      </div>
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <section id="view-book" class="view" style="display:none"></section>
+
+    <section id="view-admin" class="view" style="display:none">
+      <div class="sec-head">
+        <div><h2>Управление пользователями</h2><div class="sub" id="adminSub">Список всех учётных записей</div></div>
+        <button class="btn ghost" onclick="switchView('dashboard')">← Назад</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="admin-table">
+          <thead><tr><th>Пользователь</th><th>Email</th><th>Роль</th><th>Статус</th><th style="width:120px"></th></tr></thead>
+          <tbody id="adminUsers"></tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-top:20px;background:var(--bg-2)">
+        <b>Администратор</b>
+        <div class="slider-lbl" style="justify-content:flex-start;gap:8px;margin-top:6px">
+          <span>Вход: <code style="color:var(--neon-cyan)">admin@nocturnal.local</code></span>
+          <span>/</span>
+          <span>пароль: <code style="color:var(--neon-cyan)">admin1234</code></span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODAL: ADD BOOK ============ -->
+<div class="overlay" id="bookOverlay">
+  <div class="modal">
+    <button class="close" onclick="closeModal('bookOverlay')">✕</button>
+    <h3>Новая книга</h3>
+    <div class="sub" style="color:var(--text-faint);font-size:13px">Добавьте книгу в общую библиотеку</div>
+    <div class="field"><label>Название</label><input id="bkTitle" placeholder="Например: 1984" /></div>
+    <div class="field"><label>Автор</label><input id="bkAuthor" placeholder="Джордж Оруэлл" /></div>
+    <div class="row2">
+      <div class="field"><label>Жанр</label><select id="bkGenre">
+        <option>Фантастика</option><option>Фэнтези</option><option>Детектив</option>
+        <option>Классика</option><option>Научпоп</option><option>Драма</option><option>Роман</option>
+      </select></div>
+      <div class="field"><label>Страниц</label><input id="bkPages" type="number" min="1" value="300" /></div>
+    </div>
+    <div class="field"><label>URL обложки (необязательно)</label><input id="bkCover" placeholder="https://...  — оставьте пустым для авто-обложки" /></div>
+    <div class="field"><label>Статус</label><div class="pills" id="bkStatusPills">
+      <button class="pill active" data-st="reading">Читаю</button>
+      <button class="pill" data-st="planned">В планах</button>
+      <button class="pill" data-st="done">Прочитано</button>
+    </div></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('bookOverlay')">Отмена</button>
+      <button class="btn primary" onclick="addBook()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: CHANGE COVER ============ -->
+<div class="overlay" id="coverOverlay">
+  <div class="modal">
+    <button class="close" onclick="closeModal('coverOverlay')">✕</button>
+    <h3>Сменить обложку</h3>
+    <div class="sub" style="color:var(--text-faint);font-size:13px">Загрузите картинку с устройства или вставьте ссылку</div>
+    <div style="margin-top:16px;display:grid;gap:10px;grid-template-columns:1fr 1fr">
+      <button class="btn" style="justify-content:center" onclick="document.getElementById('coverFile').click()">📁 Выбрать файл</button>
+      <button class="btn ghost" style="justify-content:center" onclick="clearCover()">Убрать обложку</button>
+    </div>
+    <input type="file" id="coverFile" accept="image/*" style="display:none" onchange="onCoverFile(this)" />
+    <div class="field">
+      <label>Превью</label>
+      <div id="coverPreview" style="width:110px;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:var(--bg-3);display:grid;place-items:center;box-shadow:var(--violet-glow)">
+        <span style="color:var(--text-faint);font-size:12px">Нет фото</span>
+      </div>
+    </div>
+    <div class="field"><label>Или вставьте ссылку на картинку</label><input id="coverUrl" placeholder="https://...jpg" /></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('coverOverlay')">Отмена</button>
+      <button class="btn primary" onclick="saveCover()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: PROGRESS ============ -->
+<div class="overlay" id="progressOverlay">
+  <div class="modal">
+    <button class="close" onclick="closeModal('progressOverlay')">✕</button>
+    <h3 id="prgTitle">Прогресс чтения</h3>
+    <div class="field">
+      <label>Прочитано страниц</label>
+      <input type="range" id="prgSlider" min="0" value="0" />
+      <div class="slider-lbl"><span>0</span><b id="prgVal">0 / 0</b><span id="prgMax">0</span></div>
+    </div>
+    <div class="field"><label>Статус</label><div class="pills" id="prgStatusPills">
+      <button class="pill active" data-st="reading">Читаю</button>
+      <button class="pill" data-st="planned">В планах</button>
+      <button class="pill" data-st="done">Прочитано</button>
+    </div></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('progressOverlay')">Отмена</button>
+      <button class="btn primary" onclick="saveProgress()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ADD QUOTE ============ -->
+<div class="overlay" id="quoteOverlay">
+  <div class="modal">
+    <button class="close" onclick="closeModal('quoteOverlay')">✕</button>
+    <h3>Новая цитата</h3>
+    <div class="sub" style="color:var(--text-faint);font-size:13px">Поделитесь любимым моментом</div>
+    <div class="field"><label>Из книги</label><select id="qtBook"></select></div>
+    <div class="field"><label>Цитата</label><textarea id="qtText" placeholder="Текст цитаты..."></textarea></div>
+    <div class="field"><label>Страница (номер)</label><input id="qtPage" type="number" min="1" value="1" /></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal('quoteOverlay')">Отмена</button>
+      <button class="btn primary" onclick="addQuote()">Опубликовать</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ================= STATE ================= */
+let token = localStorage.getItem('nocturnal_token') || null;
+let me = null;
+let USERS = [];
+let BOOKS = [];
+let QUOTES = [];
+let CURRENT_VIEW = 'dashboard';
+let libFilter = 'all';
+let currentBookId = null;
+let bkStatusSel = 'reading';
+let prgStatusSel = 'reading';
+let editingProgress = null;
+let editingCover = null;
+let coverData = '';
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const AVATAR_COLORS=[['#9D4EDD','u'],['#00F5D4','c'],['#FF007F','p'],['#7A5CFF','u'],['#00B3A4','c'],['#FF4D8D','p']];
+
+function userById(id){return USERS.find(u=>u.id==id)||{id,name:'Гость',color:'#7A5CFF'}}
+function initials(name){return String(name||'?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+function avColor(hex){return (AVATAR_COLORS.find(x=>x[0]===hex)||[hex,'u'])[0]}
+function avatarHTML(u,size){const c=avColor(u.color||'#7A5CFF');return `<span class="av" style="background:linear-gradient(135deg,${c},${c}aa);${size?`width:${size}px;height:${size}px;font-size:${Math.round(size*0.38)}px`:''}" title="${esc(u.name)}">${initials(u.name)}</span>`;}
+function chip(status){const m={reading:['reading','Читают'],done:['done','Прочитано'],planned:['planned','В планах']};const k=m[status]||m.planned;return `<span class="status-chip ${k[0]}">${k[1]}</span>`;}
+function coverHTML(b){
+  const hue=((b.title||'A').charCodeAt(0)*17+((b.author||'A').charCodeAt(0)*7))%360;
+  if(b.cover)return `<img src="${esc(b.cover)}" onerror="this.style.display='none'" alt="${esc(b.title)}"/>`;
+  return `<div class="fallback" style="background:linear-gradient(160deg,hsl(${hue},40%,16%),hsl(${hue},60%,8%))">${initials(b.title)}</div>`;}
+function pct(b){return b.pages?Math.max(0,Math.min(100,Math.round(b.progress/b.pages*100))):0}
+function genreClass(g){const s=String(g).toLowerCase();if(s.includes('фант'))return 'c';if(s.includes('наук'))return 'p';return ''}
+function timeAgo(t){const sec=Math.floor((Date.now()-new Date(t+'Z').getTime())/1000);if(sec<60)return 'только что';if(sec<3600)return Math.floor(sec/60)+' мин';if(sec<86400)return Math.floor(sec/3600)+' ч';return Math.floor(sec/86400)+' д';}
+
+/* ================= API ================= */
+async function api(path,opts={}){
+  const headers={'Content-Type':'application/json',...(opts.headers||{})};
+  if(token)headers.Authorization='Bearer '+token;
+  const r=await fetch(path,{...opts,headers,body:opts.body?JSON.stringify(opts.body):undefined});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok){
+    if(r.status===401){localStorage.removeItem('nocturnal_token');token=null;showAuth();}
+    throw new Error(data.error||'Ошибка сервера');
+  }
+  return data;
+}
+
+/* ================= TOAST ================= */
+function toast(msg,color='cyan'){
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<span class="t-dot" style="background:var(--neon-${color});box-shadow:0 0 10px var(--neon-${color})"></span>${esc(msg)}`;
+  $('#toastWrap').appendChild(t);
+  setTimeout(()=>{t.classList.add('hide');setTimeout(()=>t.remove(),300)},2200);
+}
+
+/* ================= AUTH ================= */
+function showAuth(){$('#app').style.display='none';$('#authScreen').style.display='grid';setAuthTab('login');}
+function showApp(){$('#authScreen').style.display='none';$('#app').style.display='block';}
+function setAuthTab(t){
+  $('#tabLogin').classList.toggle('active',t==='login');
+  $('#tabRegister').classList.toggle('active',t==='register');
+  $('#formLogin').classList.toggle('show',t==='login');
+  $('#formRegister').classList.toggle('show',t==='register');
+  $('#authError').classList.remove('show');
+}
+function authError(msg){const e=$('#authError');e.textContent=msg;e.classList.add('show');}
+async function doLogin(e){
+  e.preventDefault();const btn=$('#loginBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
+  try{
+    const r=await api('/api/login',{method:'POST',body:{email:$('#loginEmail').value,password:$('#loginPass').value}});
+    token=r.token;me=r.user;localStorage.setItem('nocturnal_token',token);
+    await boot();toast('Добро пожаловать, '+me.name+'!','violet');
+  }catch(err){authError(err.message);}
+  btn.disabled=false;btn.innerHTML='Войти';
+}
+async function doRegister(e){
+  e.preventDefault();const btn=$('#regBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
+  try{
+    const r=await api('/api/register',{method:'POST',body:{name:$('#regName').value,email:$('#regEmail').value,password:$('#regPass').value}});
+    token=r.token;me=r.user;localStorage.setItem('nocturnal_token',token);
+    await boot();toast('Аккаунт создан, '+me.name+'!','violet');
+  }catch(err){authError(err.message);}
+  btn.disabled=false;btn.innerHTML='Создать аккаунт';
+}
+function logout(){localStorage.removeItem('nocturnal_token');token=null;me=null;showAuth();toast('Вы вышли');}
+
+/* ================= LOAD DATA ================= */
+async function loadAll(){
+  const [users,books,quotes]=await Promise.all([
+    api('/api/users'),api('/api/books'),api('/api/quotes')
+  ]);
+  USERS=users;BOOKS=books;QUOTES=quotes;
+}
+
+/* ================= RENDER: AVATARS ================= */
+function renderAvatars(){
+  $('#navAdmin').style.display=(me&&me.role==='admin')?'block':'none';
+  $('#avatarStack').innerHTML=USERS.map(u=>{
+    const c=avColor(u.color||'#7A5CFF');
+    const on=u.active?'on':'off';
+    const cls=u.id===me.id?'av clickable active':'av clickable';
+    return `<span class="${cls}" style="background:linear-gradient(135deg,${c},${c}aa)" title="${esc(u.name)}" onclick="switchUser(${u.id})">${initials(u.name)}<span class="dot ${on}"></span></span>`;
+  }).join('');
+}
+
+/* ================= RENDER: DASHBOARD ================= */
+function renderDashboard(){
+  $('#dashHello').textContent=`Привет, ${me.name}!`;
+  $('#stTotal').textContent=BOOKS.length;
+  $('#stReading').textContent=BOOKS.filter(b=>b.status==='reading').length;
+  $('#stDone').textContent=BOOKS.filter(b=>b.status==='done').length;
+  $('#stPages').textContent=BOOKS.reduce((s,b)=>s+(+b.pages||0),0).toLocaleString('ru');
+  renderUserProgress();
+  renderActivity();
+}
+function renderUserProgress(){
+  const counts={};USERS.forEach(u=>counts[u.id]={done:0,reading:0,planned:0});
+  BOOKS.forEach(b=>{if(counts[b.owner])counts[b.owner][b.status]++;});
+  $('#userProgress').innerHTML=USERS.map(u=>{
+    const sc=counts[u.id]||{done:0,reading:0,planned:0};
+    const total=sc.done+sc.reading+sc.planned;
+    const pv=Math.max(8,total?Math.round(sc.done/total*100):0);
+    return `<div class="up-row">
+      ${avatarHTML(u,32)}
+      <div class="grow">
+        <div class="name">${esc(u.name)} ${u.active?'':'<span style="color:var(--text-faint);font-weight:400">(офлайн)</span>'}</div>
+        <div class="cnt">${sc.done} прочитано · ${sc.reading} читает · ${sc.planned} в планах</div>
+        <div class="progress" style="margin-top:6px"><span style="width:${pv}%"></span></div>
+      </div>
+      <div class="pct">${pv}%</div>
+    </div>`;
+  }).join('');
+}
+async function renderActivity(){
+  const el=$('#activityFeed');el.innerHTML='<div class="card" style="color:var(--text-faint)">Загрузка...</div>';
+  try{
+    const acts=await api('/api/activity');
+    const icons={book:['+','violet'],quote:['“','cyan'],comment:['💬','pink']};
+    el.innerHTML=acts.map(a=>{
+      const ic=icons[a.type]||icons.book;
+      return `<div class="card hoverable" style="margin-bottom:12px;display:flex;align-items:center;gap:14px;padding:16px">
+        <div class="stat" style="padding:10px 14px"><span style="font-family:var(--serif);font-size:20px;color:var(--neon-${ic[1]})">${ic[0]}</span></div>
+        <span style="font-size:14px;color:var(--text-dim)">${esc(a.text)}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-faint)">${timeAgo(a.at)}</span>
+      </div>`;
+    }).join('')||'<div class="empty"><p>Пока нет активности</p></div>';
+  }catch(err){el.innerHTML='<div class="empty"><p>Не удалось загрузить ленту</p></div>';}
+}
+
+/* ================= RENDER: LIBRARY ================= */
+function renderLibrary(){
+  const el=$('#library');
+  const count=st=>BOOKS.filter(b=>b.status===st).length;
+  const labels={all:'Все',reading:'В процессе',planned:'В планах',done:'Читают'};
+  document.querySelectorAll('#libFilters .pill').forEach(p=>{
+    const f=p.dataset.f;
+    const n=f==='all'?BOOKS.length:count(f);
+    p.textContent=labels[f]+' ('+n+')';
+    p.classList.toggle('active',f===libFilter);
+  });
+  const list=libFilter==='all'?BOOKS:BOOKS.filter(b=>b.status===libFilter);
+  if(!list.length){
+    const emptyMsg=libFilter==='all'
+      ?`<div class="empty" style="grid-column:1/-1"><div class="big">✦</div><p>Библиотека пуста. Добавьте первую книгу.</p><button class="btn primary" onclick="openBookModal()">+ Добавить книгу</button></div>`
+      :`<div class="empty" style="grid-column:1/-1"><div class="big">✦</div><p>В этой категории пока нет книг.</p></div>`;
+    el.innerHTML=emptyMsg;return;
+  }
+  el.innerHTML=list.map(b=>{
+    const p=pct(b);
+    return `<article class="book" onclick="openBook(${b.id})">
+      <div class="cover">${coverHTML(b)}</div>
+      <div class="body">
+        <div style="display:flex;align-items:center;gap:8px">
+          <h3 style="flex:1">${esc(b.title)}</h3>
+          ${chip(b.status)}
+        </div>
+        <div class="author">${esc(b.author)}</div>
+        <div class="progress"><span style="width:${p}%"></span></div>
+        <div class="meta">
+          <span class="badge ${genreClass(b.genre)}">${esc(b.genre)}</span>
+          <span class="pages">${b.pages} стр · ${p}%</span>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+document.querySelectorAll('#libFilters .pill').forEach(p=>p.addEventListener('click',()=>{libFilter=p.dataset.f;renderLibrary();}));
+
+/* ================= RENDER: FEED ================= */
+function renderFeed(){
+  const el=$('#feed');
+  if(!QUOTES.length){el.innerHTML=`<div class="empty"><div class="big">❝</div><p>Цитат пока нет. Поделитесь первой!</p><button class="btn primary" onclick="openQuoteModal()">+ Добавить цитату</button></div>`;return;}
+  el.innerHTML=QUOTES.map(q=>{
+    const liked=(q.likers||[]).some(l=>l.id===me.id);
+    const likers=q.likers||[];
+    const likerAv=likers.map(l=>`<span class="av" style="background:${avColor(l.color)}" title="${esc(l.name)}">${initials(l.name)}</span>`).join('');
+    const comments=q.comments||[];
+    return `<article class="quote">
+      <blockquote>«${esc(q.text)}»</blockquote>
+      <div class="cite">
+        <span class="av" style="background:${avColor(q.user_color)}">${initials(q.user_name)}</span>
+        <span>— <b>${esc(q.user_name)}</b>, ${esc(q.book_title)} · ${esc(q.book_author)}</span>
+        <span class="page">стр. ${q.page}</span>
+      </div>
+      <div class="foot">
+        <button class="icon-btn ${liked?'liked':''}" onclick="toggleLike(${q.id})">${liked?'♥':'♡'}<span>${q.likes||0}</span></button>
+        <div class="likers">${likerAv}</div>
+        <button class="icon-btn" onclick="copyQuote(${q.id})">⧉ Скопировать</button>
+        <button class="icon-btn" onclick="toggleComments(${q.id})">💬 Комментарии (${q.comments_count||0})</button>
+      </div>
+      <div class="comments" id="comments-${q.id}">
+        <div id="cbody-${q.id}"></div>
+        <div class="comment-form">
+          ${avatarHTML(me,30)}
+          <input placeholder="Оставить комментарий..." onkeydown="if(event.key==='Enter')addComment(${q.id},this)"/>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+async function loadComments(qid,open=true){
+  const body=$('#cbody-'+qid);if(!body)return;
+  try{
+    const rows=await api('/api/quotes/'+qid+'/comments');
+    body.innerHTML=rows.map(c=>{
+      const u=userById(c.user);
+      return `<div class="comment">
+        <span class="av" style="background:${avColor(c.user_color||u.color)}">${initials(c.user_name||u.name)}</span>
+        <div>
+          <div class="c-head"><b>${esc(c.user_name||u.name)}</b><time>${timeAgo(c.created)}</time></div>
+          <p>${esc(c.text)}</p>
+        </div>
+      </div>`;
+    }).join('')||'<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:8px">Пока нет комментариев</div>';
+    if(open)document.getElementById('comments-'+qid).parentElement.classList.add('open');
+  }catch(e){body.innerHTML='<div style="color:var(--neon-pink);font-size:13px">Ошибка загрузки</div>';}
+}
+function toggleComments(qid){const el=document.getElementById('comments-'+qid);if(!el)return;if(el.parentElement.classList.toggle('open'))loadComments(qid,false);}
+
+/* ================= RENDER: BOOK DETAIL ================= */
+async function renderBook(){
+  const b=BOOKS.find(x=>x.id===currentBookId);if(!b){switchView('library');return;}
+  const p=pct(b);
+  $('#view-book').innerHTML=`
+    <div class="detail">
+      <div><div class="cover-big">${coverHTML(b)}</div>
+        <button class="btn ghost" style="width:100%;margin-top:14px;justify-content:center" onclick="openCoverModal(${b.id})">Сменить обложку</button>
+      </div></div>
+      <div>
+        <div class="sec-head" style="margin-top:0">
+          <div>
+            <h2 style="font-size:28px">${esc(b.title)}</h2>
+            <div class="sub" style="font-size:15px;color:var(--text-dim)">${esc(b.author)}</div>
+          </div>
+          <button class="btn ghost" onclick="switchView('library')">← Назад</button>
+        </div>
+
+        <div class="card">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Жанр</div>
+              <div style="margin-top:4px"><span class="badge ${genreClass(b.genre)}" style="font-size:12px">${esc(b.genre)}</span></div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Статус</div>
+              <div style="margin-top:4px">${chip(b.status)}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Страниц</div>
+              <div style="margin-top:4px;font-weight:700">${b.pages}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px">Прочитано</div>
+              <div style="margin-top:4px;font-weight:700;color:var(--neon-cyan)">${b.progress} / ${b.pages} <span style="color:var(--text-dim);font-weight:400">(${p}%)</span></div>
+            </div>
+          </div>
+          <div class="progress" style="height:10px;margin-top:18px"><span style="width:${p}%"></span></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button class="btn ghost" style="padding:7px 12px;font-size:13px" onclick="openProgressModal(${b.id})">Изменить прогресс</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn ${b.status==='reading'?'primary':''}" style="${b.status==='reading'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'reading')">Читаю</button>
+          <button class="btn ${b.status==='done'?'primary':''}" style="${b.status==='done'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'done')">Прочитано</button>
+          <button class="btn ${b.status==='planned'?'primary':''}" style="${b.status==='planned'?'':'background:var(--bg-2);color:var(--text-dim)'}" onclick="quickStatus(${b.id},'planned')">В планах</button>
+          <button class="btn ghost" onclick="openQuoteModal(${b.id})">❝ Цитата</button>
+        </div>
+        <div class="sec-head" style="margin-top:30px"><h2>Отзывы и оценки</h2><div class="sub" id="revCount">Загрузка...</div></div>
+        <div class="card" style="background:var(--bg-2)">
+          <b>Оставить отзыв</b>
+          <div class="stars" id="reviewStars" style="margin:10px 0">${starRow(0)}</div>
+          <div class="field" style="margin:0"><textarea id="reviewText" placeholder="Поделитесь впечатлениями..."></textarea></div>
+          <div class="actions" style="margin-top:12px"><button class="btn primary" onclick="addReview(${b.id})">Опубликовать отзыв</button></div>
+        </div>
+        <div id="reviewList">Загрузка...</div>
+      </div>
+    </div>`;
+  bindReviewStars();
+  loadReviews(b.id);
+}
+function starRow(n){let s='';for(let i=1;i<=5;i++){s+=`<span class="star ${i<=n?'lit':''}" data-v="${i}">★</span>`;}return s;}
+function bindReviewStars(){$('#reviewStars').addEventListener('click',e=>{const st=e.target.closest('.star');if(!st)return;const v=+st.dataset.v;document.querySelectorAll('#reviewStars .star').forEach(x=>x.classList.toggle('lit',+x.dataset.v<=v));window._reviewStars=v;});}
+async function loadReviews(bid){
+  const list=$('#reviewList');const cnt=$('#revCount');
+  try{
+    const rows=await api('/api/books/'+bid+'/reviews');
+    cnt.textContent=rows.length+' рецензий';
+    list.innerHTML=rows.map(r=>{
+      const u=userById(r.user);
+      return `<div class="review">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="av" style="background:${avColor(r.user_color||u.color)}">${initials(r.user_name||u.name)}</span>
+          <div><b style="font-size:14px">${esc(r.user_name||u.name)}</b>
+          <div class="stars" style="font-size:16px;cursor:default">${starRow(r.stars)}</div></div>
+        </div>
+        <p>«${esc(r.text)}»</p>
+      </div>`;
+    }).join('')||'<div class="empty" style="margin-top:16px"><p>Отзывов пока нет. Будьте первым!</p></div>';
+  }catch(e){list.innerHTML='<div class="empty" style="margin-top:16px"><p>Ошибка загрузки</p></div>';}
+}
+
+/* ================= ACTIONS ================= */
+function switchUser(id){if(id===me.id)return;toast('Переключение профилей доступно после входа','pink');}
+async function switchView(view){
+  CURRENT_VIEW=view;
+  document.querySelectorAll('.view').forEach(v=>v.style.display='none');
+  $('#view-'+view).style.display='block';
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  if(view==='dashboard')renderDashboard();
+  if(view==='library')renderLibrary();
+  if(view==='feed')renderFeed();
+  if(view==='book')renderBook();
+  if(view==='admin')renderAdmin();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
+function openBook(id){currentBookId=id;switchView('book');}
+
+/* --- Cover --- */
+function openCoverModal(id){
+  const b=BOOKS.find(x=>x.id===id);if(!b)return;
+  editingCover=id;coverData='';
+  $('#coverUrl').value='';
+  renderCoverPreview('');
+  $('#coverOverlay').classList.add('show');
+}
+function renderCoverPreview(data){
+  const pv=$('#coverPreview');
+  if(data){pv.innerHTML=`<img src="${esc(data)}" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='<span style=color:var(--text-faint);font-size:12px>Нет фото</span>'" />`;}
+  else{pv.innerHTML=`<span style="color:var(--text-faint);font-size:12px">Нет фото</span>`;}
+}
+function onCoverFile(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{coverData=e.target.result;renderCoverPreview(coverData);};
+  reader.readAsDataURL(f);
+}
+$('#coverUrl').addEventListener('input',e=>{const v=e.target.value.trim();if(v){renderCoverPreview(v);}});
+function clearCover(){coverData='__none__';renderCoverPreview('');}
+async function saveCover(){
+  const b=BOOKS.find(x=>x.id===editingCover);if(!b)return;
+  let final='';
+  if(coverData==='__none__'){final='';}
+  else if(coverData){final=coverData;}
+  else{final=$('#coverUrl').value.trim();}
+  try{
+    const nb=await api('/api/books/'+b.id,{method:'PATCH',body:{cover:final}});
+    Object.assign(b,nb);
+    closeModal('coverOverlay');
+    renderBook();renderLibrary();
+    toast('Обложка обновлена');
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Admin --- */
+async function renderAdmin(){
+  if(!me||me.role!=='admin'){switchView('dashboard');return;}
+  $('#adminSub').textContent='Список всех учётных записей ('+USERS.length+')';
+  $('#adminUsers').innerHTML=USERS.map(u=>{
+    const isSelf=u.id===me.id;
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:12px">
+        ${avatarHTML(u,34)}
+        <div><b>${esc(u.name)}</b>${isSelf?' <span style="color:var(--neon-cyan);font-size:11px">(вы)</span>':''}</div>
+      </div></td>
+      <td style="color:var(--text-dim)">${esc(u.email)}</td>
+      <td><span class="admin-role ${u.role==='admin'?'admin':'user'}">${u.role==='admin'?'Админ':'Пользователь'}</span></td>
+      <td><span class="status-chip ${u.active?'reading':'planned'}" style="position:static">${u.active?'Активен':'Неактивен'}</span></td>
+      <td>${isSelf||u.role==='admin'
+        ?'<button class="admin-delete" disabled title="Нельзя удалить">Удалить</button>'
+        :`<button class="admin-delete" onclick="deleteUser(${u.id},'${esc(u.name)}')">Удалить</button>`}
+      </td>
+    </tr>`;
+  }).join('');
+}
+async function deleteUser(id,name){
+  if(!confirm(`Удалить пользователя «${name}» и все его книги, цитаты и комментарии? Это действие необратимо.`))return;
+  try{
+    await api('/api/users/'+id,{method:'DELETE'});
+    USERS=USERS.filter(u=>u.id!==id);
+    renderAdmin();renderAvatars();renderDashboard();
+    toast(`Пользователь «${name}» удалён`,'pink');
+  }catch(err){toast(err.message,'pink');}
+}
+
+async function quickStatus(id,st){
+  const b=BOOKS.find(x=>x.id===id);if(!b)return;
+  const nb=await api('/api/books/'+id,{method:'PATCH',body:{status:st}});
+  Object.assign(b,nb);renderBook();renderDashboard();renderLibrary();
+  toast(`Статус: ${st==='reading'?'Читают':st==='done'?'Прочитано':'В планах'}`);
+}
+
+/* --- Book modal --- */
+function openBookModal(){
+  bkStatusSel='reading';
+  document.querySelectorAll('#bkStatusPills .pill').forEach(p=>p.classList.toggle('active',p.dataset.st==='reading'));
+  $('#bkTitle').value='';$('#bkAuthor').value='';$('#bkCover').value='';$('#bkPages').value=300;
+  $('#bookOverlay').classList.add('show');
+}
+document.querySelectorAll('#bkStatusPills .pill').forEach(p=>p.addEventListener('click',()=>{bkStatusSel=p.dataset.st;document.querySelectorAll('#bkStatusPills .pill').forEach(x=>x.classList.toggle('active',x===p));}));
+async function addBook(){
+  const t=$('#bkTitle').value.trim(),a=$('#bkAuthor').value.trim(),p=+$('#bkPages').value||1;
+  if(!t){toast('Введите название книги','pink');return;}
+  try{
+    const b=await api('/api/books',{method:'POST',body:{title:t,author:a,genre:$('#bkGenre').value,pages:p,cover:$('#bkCover').value.trim(),status:bkStatusSel}});
+    BOOKS.unshift(b);closeModal('bookOverlay');renderLibrary();renderDashboard();
+    toast(`Книга «${t}» добавлена`);
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Progress modal --- */
+function openProgressModal(id){
+  const b=BOOKS.find(x=>x.id===id);if(!b)return;editingProgress=id;currentBookId=id;
+  const s=$('#prgSlider');s.max=b.pages;s.value=b.progress;
+  $('#prgTitle').textContent='Прогресс: '+b.title;
+  $('#prgMax').textContent=b.pages;updatePrgVal();
+  prgStatusSel=b.status;
+  document.querySelectorAll('#prgStatusPills .pill').forEach(p=>p.classList.toggle('active',p.dataset.st===prgStatusSel));
+  $('#progressOverlay').classList.add('show');
+}
+$('#prgSlider').addEventListener('input',updatePrgVal);
+function updatePrgVal(){const b=BOOKS.find(x=>x.id===editingProgress);$('#prgVal').textContent=`${$('#prgSlider').value} / ${b?b.pages:0} стр.`;}
+document.querySelectorAll('#prgStatusPills .pill').forEach(p=>p.addEventListener('click',()=>{prgStatusSel=p.dataset.st;document.querySelectorAll('#prgStatusPills .pill').forEach(x=>x.classList.toggle('active',x===p));}));
+async function saveProgress(){
+  const b=BOOKS.find(x=>x.id===editingProgress);if(!b)return;
+  try{
+    const nb=await api('/api/books/'+b.id,{method:'PATCH',body:{progress:+$('#prgSlider').value,status:prgStatusSel}});
+    Object.assign(b,nb);closeModal('progressOverlay');
+    renderBook();renderLibrary();renderDashboard();toast('Прогресс сохранён');
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Quote modal --- */
+function openQuoteModal(bookId){
+  $('#qtBook').innerHTML=BOOKS.map(b=>`<option value="${b.id}" ${b.id===bookId?'selected':''}>${esc(b.title)}</option>`).join('');
+  $('#qtText').value='';$('#qtPage').value=1;
+  $('#quoteOverlay').classList.add('show');
+}
+async function addQuote(){
+  const text=$('#qtText').value.trim(),bid=$('#qtBook').value;
+  if(!text){toast('Введите текст цитаты','pink');return;}
+  try{
+    await api('/api/quotes',{method:'POST',body:{book:+bid,text:text,page:+$('#qtPage').value||1}});
+    closeModal('quoteOverlay');
+    const q=(await api('/api/quotes')).find(x=>x.book===+bid&&x.text===text);
+    QUOTES=await api('/api/quotes');renderFeed();renderDashboard();toast('Цитата опубликована');
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Quote interactions --- */
+function copyQuote(id){
+  const q=QUOTES.find(x=>x.id===id);if(!q)return;
+  const txt=`«${q.text}» — ${q.book_title}, с.${q.page}`;
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(()=>toast('Цитата скопирована'));}
+  else{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Цитата скопирована');}
+}
+async function toggleLike(id){
+  const q=QUOTES.find(x=>x.id===id);if(!q)return;
+  const liked=(q.likers||[]).some(l=>l.id===me.id);
+  await api('/api/quotes/'+id+'/like',{method:'POST',body:{liked:!liked}});
+  QUOTES=await api('/api/quotes');renderFeed();
+  toast(!liked?'Понравилось!':'Убрали реакцию',!liked?'pink':'cyan');
+}
+async function addComment(id,input){
+  const text=input.value.trim();if(!text)return;
+  try{
+    await api('/api/quotes/'+id+'/comments',{method:'POST',body:{text}});
+    input.value='';QUOTES=await api('/api/quotes');renderFeed();
+    document.getElementById('comments-'+id).parentElement.classList.add('open');
+    loadComments(id,false);toast('Комментарий добавлен');
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Review --- */
+async function addReview(bid){
+  const text=$('#reviewText').value.trim();const stars=window._reviewStars||0;
+  if(!text){toast('Напишите текст отзыва','pink');return;}
+  if(!stars){toast('Поставьте оценку','pink');return;}
+  try{
+    await api('/api/books/'+bid+'/reviews',{method:'POST',body:{stars,text}});
+    $('#reviewText').value='';loadReviews(bid);toast('Отзыв опубликован');
+  }catch(err){toast(err.message,'pink');}
+}
+
+/* --- Modal helpers --- */
+function closeModal(id){$('#'+id).classList.remove('show');}
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show')}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.show').forEach(o=>o.classList.remove('show'))});
+
+/* ================= BOOT ================= */
+async function boot(){
+  if(!token){showAuth();return;}
+  try{
+    me=await api('/api/me');
+    await loadAll();
+    showApp();renderAvatars();renderDashboard();renderLibrary();renderFeed();
+  }catch(err){showAuth();}
+}
+boot();
+</script>
+</body>
+</html>
